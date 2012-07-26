@@ -1,0 +1,715 @@
+title: Test of Markdown
+date: 2012/02/22 20:26:37 -0800
+tags: []
+author: David Pollak
+alias: /test-of-markdown
+
+<h1>The Visi Lanugage</h1>
+
+<p>David Pollak</p>
+
+<p>February 22, 2012</p>
+
+<p>© 2011-2012 David Pollak, All Rights Reserved. Licensed under MPL 1.1</p>
+
+<h1>Chapter 1 Introduction</h1>
+
+<p>This document describes the <a href="http://visi.io">Visi</a> language. Visi is
+an open source language that blends concepts from spreadsheets,
+scripting languages, functional languages such as Haskell and OCaml,
+and other systems. The goal of Visi is to be accessible for Excel
+power users, yet be “correct” such that runnable code should be
+substantially bug-free. Visi forms the basis for the
+<a href="http://Visi.Pro">Visi.Pro</a> platform that allows programming on iPads
+and those programs can run on iPads, iPhones, as well as in the cloud.</p>
+
+<p>Features of Visi include:</p>
+
+<ul>
+<li>Guaranteed serializability of user-created data structures (like
+Erlang) such that data structures can seamlessly migrate across
+address spaces.</li>
+<li>Visually pleasing syntax that makes simple programs as well as very
+complex programs easy to understand. The syntax is whitespace-oriented
+and eschews curly-braces, line ending markers, etc.</li>
+<li>Persistent (immutable) data structures except for certain data
+structures that do not escape the boundaries of library calls
+(everything that “end users” see is immutable).</li>
+<li>Clear demarcations of side effects (sources [input]/sinks [output]
+and references) such that the order and locus of computations is
+invisible to the programmer until a commit operation to a sink or
+reference occurs.</li>
+<li>A type system that is simultaneously powerful and invisible. End
+users cannot write type annotations. Library authors can construct
+very complex type expressions that are evaluated at compile time to
+insure code correctness. Programs will not be allowed to run unless
+they pass the type checker. Note that getting error messages “right”
+will be a serious challenge for Visi.</li>
+<li>Visi will be self-hosted with a built-in IDE like Smalltalk. The
+initial IDE will be Mac OS X based.</li>
+<li>Visi will support incremental development such that changes can be
+made to “running” programs like changes can be made to a spreadsheet
+and the changes are immediately reflected. However, Visi programs will
+be compiled to various more efficient representations including
+converting Visi lambda calculus representations to GHC intermediate
+representations such that Visi programs can be compiled to any
+supported GHC back-ends including LLVM, native code, and potentially
+JavaScript. Visi can also be run interpreted on iOS devices.</li>
+<li>Visi, like spreadsheets, performs computations when external state
+changes and updates outputs. This makes Visi ideal for writing systems
+that rely on external data feeds and Visi can trigger events when new
+data from data feeds is received.</li>
+</ul>
+
+
+<p>This document is an evolving description of the Visi language as well
+as a discussion/justification for the design decisions.</p>
+
+<h1>Chapter 2 Motivation</h1>
+
+<p>Do we need yet another computer language? Is there currently a
+“Cambrian explosion” of computer languages and why Visi?</p>
+
+<p>Well, yes. Most computer languages, especially the ones that are
+cropping up these days, seem to re-visit ideas of past computer
+languages. They make minor syntactic changes or in other ways make
+small alterations to the kind of basic concepts that have been around
+computing for years.</p>
+
+<p>There are notable exceptions. Clojure embraced Lisp syntax, but
+fundamentally changes <a href="http://www.artima.com/articles/hickey_on_time.html">mutable state into an issue of
+time</a>.
+<a href="http://scala-lang.org">Scala</a> made material advances in computer
+languages by blending a rich mostly consistent type system with object
+oriented programming. Most other languages that have been introduced
+this millennium are minor variants on Smalltalk or C++ or Java.</p>
+
+<p>Visi takes a different approach. Visi approaches the problem of
+describing how a computer should respond to input in a similar manner
+to spreadsheets. Visi approaches computing from the perspective of a
+dependency graph when outputs change as inputs change and only outputs
+that depend on a particular input are recomputed when a particular
+input changes. The dependency graph is intuitive to anyone who has
+ever put together an Excel spreadsheet (or a 1-2-3 spreadsheet or even
+a VisiCalc spreadsheet.)</p>
+
+<p>More broadly, my motivation for Visi is to create a language that
+fundamentally changes the way people program computers such that Visi
+is a language oriented to humans rather than a veneer on top of
+computing machinery. Visi is not a tool for writing compilers
+(although it will be mostly self-hosting). But, instead, Visi is a
+tool for normal people to model, to describe relationships such that a
+network of computers can perform calculations based on external input
+and generate predictable, correct output. My motivation for Visi is to
+change the landscape of computer languages the way that VisiCalc
+changed the language and computing landscape in 1979.</p>
+
+<h1>Chapter 3 Language Samples</h1>
+
+<p>Let&rsquo;s take a look at some Visi language samples.</p>
+
+<p>First, “Hello, World!”:</p>
+
+<p><code>
+"Greeting" = "Hello, World!"
+</code></p>
+
+<p>The lefthand side of the equation has quotes around it, meaning that
+it&rsquo;s a “Sink”. A Sink is output that can be wired up to a user
+interface or some other external output.</p>
+
+<p>Next, let&rsquo;s take a number from a “Source” (an input), add 1 to the
+number and send it to a “Sink” called “Plus One”:</p>
+
+<p><code>
+?number
+"Plus One" = number + 1
+</code></p>
+
+<p>It&rsquo;s easy to define functions:</p>
+
+<p><code>
+addOne n = n + 1 // a function that adds 1 to the input
+?number
+"Plus One" = addOne number
+</code></p>
+
+<p>And functions can be recursive:</p>
+
+<p><code>
+fact n = if n == 0 then 1 else n * fact n - 1
+res = fact 10 // 3628800
+</code></p>
+
+<p>Syntactically, variables (and local functions) need only be offset by
+spaces from the upper level declaration:</p>
+
+<p><code>
+f n = // add 33 to the input
+ v = 33 // the variable v is set to 33
+ n + v // return the result because it's the last line of the function
+</code></p>
+
+<p>In action:</p>
+
+<p><code>
+f n =
+ v = 33
+ n + v
+res = f 3 // res == 36
+</code></p>
+
+<p>Functions can be local as well:</p>
+
+<p><code>
+f n = // calculate the factorial of the input
+ fact n = if n == 0 then 1 else n * fact(n - 1)
+ fact n
+</code></p>
+
+<p>Inner functions can shadow outer function. The function in the nearest
+scope, wins. Also partially applied functions can be passed as
+parameters:</p>
+
+<p>```
+fact n = n &amp; &ldquo;hello&rdquo; /<em> proper scoping: fact is not the inner fact </em>/
+f n = /<em> Test partially applied functions </em>/
+ // a local fact function that is visible within this function only
+ fact n = if n == 0 then 1 else n * fact(n &ndash; 1)
+ app n fact // apply the fact function to the input</p>
+
+<p>/<em> Apply the function f to the value </em>/
+app v f = f v</p>
+
+<p>res = f 8 // 40320.0
+```</p>
+
+<p>Partially applied functions close over local scope:</p>
+
+<p>```
+f b = /<em> test that the function closes over local scope </em>/
+ timesb n m = n * b * m
+ timesb /* partially apply the function which closes over</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>the scope of the 'b' parameter */</pre></div>
+</div>
+
+
+<p>app v f = f v</p>
+
+<p>q = f 8 // return a partially applied function</p>
+
+<p>z = f 10 // return another partially applied function</p>
+
+<p>res = (app 9 (app 8 q)) &ndash; ((z 8 9) + (z 1 1)) // -154
+```</p>
+
+<p>Rolling input, functions and output together:</p>
+
+<p>```
+/<em> Input </em>/
+?taxRate // source the tax rate
+?taxable
+?nonTaxable</p>
+
+<p>/<em> Computations </em>/
+total = subtotal + tax
+tax = taxable * taxRate
+subtotal = taxable + nonTaxable</p>
+
+<p>/<em> Output </em>/
+&ldquo;Total&rdquo; = total // sink the total
+&ldquo;Tax&rdquo; = tax // sink the tax
+```</p>
+
+<p>And the type checker insures you don&rsquo;t mix types:</p>
+
+<p><code>
+f = 3
+d = f &amp; "hi" // fails... can't mix a number with a String
+</code></p>
+
+<p>The typer supports the identity function and type variables:</p>
+
+<p><code>
+q n = n
+f n = if true then n else (q n) // both q and f are generic function
+</code></p>
+
+<p>Generic functions, even at multiple levels of recursion can be correctly typed:</p>
+
+<p><code>
+a n = b n
+b n = c n
+c n = a n // a, b, and c are all generic functions
+</code></p>
+
+<p>Functions can be mutually recursive without any hints to the type
+checker (like OCaml&rsquo;s let rec):</p>
+
+<p>```
+isOdd n = if n == 1 then true else not (isEven (n &ndash; 1))
+isEven n = if n == 0 then true else not (isOdd (n &ndash; 1))</p>
+
+<p>// define the not function
+not n = if n then false else true</p>
+
+<p>// the result is true (9 is odd)
+res = isOdd 9
+```</p>
+
+<p>More language samples as Visi evolves.</p>
+
+<h1>Chapter 4 The Visi Language</h1>
+
+<p>Visi is a literate language.  That means that Visi models are Markdown
+documentation that contain the model inside the text.  This is because
+Visi models tell a story and the descriptive part of the story is more
+important than the instructions to the computer.  For example:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>This is a *Visi* model.  This text tells the story of the model.
+
+Add one to parameter:
+```
+addOne n = n + 1 // this is the logic in the model
+```
+
+I'm telling more of a story… and you can learn more about the
+[Visi language](https://github.com/visi-lang/visi/wiki/language).</pre></div>
+</div>
+
+
+<p>If the Visi parser detects two or more sets of triple back-ticks in
+the document, it parses only the contents of the triple back-ticks.
+In this way, Visi models also display correctly as <a href="http://github.github.com/github-flavored-markdown/">Github Flavored
+Markdown</a>.</p>
+
+<p>The rest of this chapter will be examples of the Visi language models
+and will not discuss
+<a href="http://daringfireball.net/projects/markdown/syntax">Markdown</a>.</p>
+
+<h2>Evaluation</h2>
+
+<p>All expressions and functions in Visi are lazily evaluated (except
+that certain built in
+functions may be strictly evaluated to improve performance).
+Expressions in a model are evaluated on demand.  The demand comes from
+a source (input) changing and recomputing all sinks (outputs) depend
+on that source.  The Visi runtime makes no guarantee about the
+order of evaluation or even the location of evaluation.  Visi models,
+like Excel models,</p>
+
+<h2>Language Pieces</h2>
+
+<h3>A zero parameter function:</h3>
+
+<div class="CodeRay">
+  <div class="code"><pre>myFunc = 33</pre></div>
+</div>
+
+
+<h3>A one parameter function:</h3>
+
+<div class="CodeRay">
+  <div class="code"><pre>oneParam n = n + 1</pre></div>
+</div>
+
+
+<h3>if/then/else</h3>
+
+<div class="CodeRay">
+  <div class="code"><pre>zeroOrMore n = if n &gt; 0 then n else 0</pre></div>
+</div>
+
+
+<h3>Calling a function</h3>
+
+<div class="CodeRay">
+  <div class="code"><pre>myFunc n = n + 1
+callFunc n = myFunc n
+res = callFunc 5 // res == 6</pre></div>
+</div>
+
+
+<h3>Partially Applying a Function</h3>
+
+<p>A function can be partially applied:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>mult a b = a * b
+times8 = mult 8
+res = times8 2 // res == 16</pre></div>
+</div>
+
+
+<p>As can an operator:</p>
+
+<p>```
+plus1 = (1 +)
+res = plus1 5 // res == 6</p>
+
+<p>plus = (+)
+res = plus 1 2 // res == 3</p>
+
+<p>```</p>
+
+<h3>Local functions (zero and more parameters)</h3>
+
+<p>Local functions can take zero or more parameters and close over local
+scope.  For example:</p>
+
+<p><code>
+// create a partially applied function that multiplies by the param
+multBy param =
+   times a b = a * b
+   toReturn = times param // partially apply the local times function
+   toReturn
+</code></p>
+
+<p>Both <code>times</code> and <code>toReturn</code> are functions local to the <code>multBy</code> scope.
+ <code>toReturn</code> closes over local scope (the <code>param</code> parameter)</p>
+
+<h3>Whitespace is significant</h3>
+
+<p>Visi does not have a line ending character, but leading whitespace is
+significant.</p>
+
+<p>A line that is indented deeper than the line above it is a logical continuation
+of the line above.  The simplest example is:</p>
+
+<p><code>
+myFunc n =
+  n + 1
+</code>
+Or:</p>
+
+<p>```
+myFunc n =
+  if n > 0 then n</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>else n * -1</pre></div>
+</div>
+
+
+<p>```</p>
+
+<p>Local functions are nested via whitespace:</p>
+
+<p>```
+myFunc a b =
+  aTimes2 = a * 2
+  mySillyFunc n =</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>myInnerFunc b = b + 1 // b is scoped to the param of myInnerFunc
+thing = n * 3
+myInnerFunc thing // the results of mySillyFunc</pre></div>
+</div>
+
+
+<p>  (mySillyFunc b) + aTimes2 // (b * 3) + 1 + (a * 2)
+```</p>
+
+<p>At this point, there is no support for tabs, so whitespace means space
+characters (ASCII 32).</p>
+
+<h3>Sources</h3>
+
+<p>Visi processes information that comes from a source or input.  A
+source can come from user input, an external
+process, or even from the sink (output) of another Visi
+model.</p>
+
+<p>a source is defined by placing a <code>?</code> before an identifier:</p>
+
+<p><code>
+?number // a source
+nextNumber = number + 1 // a function that references the number source
+</code></p>
+
+<h3>Sinks</h3>
+
+<p>A <code>sink</code> is the result of applying a model to the value
+of sources.</p>
+
+<p>A sink is defined by a quoted identifier on the left hand side of an equation:</p>
+
+<p><code>
+"greeting" = "Hello, World!"
+</code></p>
+
+<p>Sinks can depend on sources and when a predicate source
+changes, all dependent sinks are computed and triggered.  Trigger
+causes any external systems associated with the sink to be updated.</p>
+
+<p>```
+?number</p>
+
+<p>&ldquo;next&rdquo; = number + 1
+```</p>
+
+<h3>Primative Types</h3>
+
+<p>Visi has the following data types built in:</p>
+
+<ul>
+<li>Boolean</li>
+<li>Integer (8 bit, 16 bit, 32 bit, 64 bit and arbitrary precision)</li>
+<li>Double Precision Floating point (single precision floating point?)</li>
+<li>Rational numbers (numbers with arbitrary precision Integer as
+numerator and denominator)</li>
+<li>String (Unicode capable, UTF-8 encodable)</li>
+<li>Date with millisecond precision and TimeSpan</li>
+<li>Geospatial (long/lat)</li>
+<li>Media (image, sound, mpeg &mdash; Yeah, the could be compound data
+structures, but I
+think it&rsquo;s optimal to have the data structure be native so we can
+lazily load the media or stream it)</li>
+<li>Array</li>
+<li>Byte Array (separate from Array for performance reasons)</li>
+</ul>
+
+
+<p>Additionally, the Visi language has built-in syntax support for Lists,
+although List is implemented as a library.  The syntax is
+Haskell-like:</p>
+
+<p>```
+myAnimals = [&ldquo;Archer&rdquo;, &ldquo;Madeline&rdquo;, &ldquo;Elwood&rdquo;]
+ageRange = [1 .. 50]
+inifiniteRange = [ 1 .. ]</p>
+
+<p>head a:rest = a
+tail a:rest = rest |</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>_ = Nil</pre></div>
+</div>
+
+
+<p>```</p>
+
+<p>Visi also supports tuples (Product types) at the parser level but the
+implementation of tuples will be done in libraries:</p>
+
+<p>```
+me = (&ldquo;David&rdquo;, 48)
+returnValue = (200, True, &ldquo;stuff&rdquo;)</p>
+
+<p>```</p>
+
+<h3>Data Structures</h3>
+
+<p>Visi has data structures that are, in ML parlance, union types.</p>
+
+<p>Constants:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Bool2 = True | False</pre></div>
+</div>
+
+
+<p>Simple data structures:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Dog(String)</pre></div>
+</div>
+
+
+<p>Simple data structures with named properties:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Cat(name: String)</pre></div>
+</div>
+
+
+<p>Union types:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Thing = This(String) |
+               That(when: Date)</pre></div>
+</div>
+
+
+<p>Union types with common constructors:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Person(String, age: Int) =
+    Kid() |
+    Parent(kids: [Person])
+
+daniel = Kid(&quot;Daniel&quot;, 8)
+david = Parent(&quot;David&quot;, 48, [daniel])</pre></div>
+</div>
+
+
+<p>Union type with properties:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct WritingInstrument =
+    property
+        size = Millimeter 7
+    Pencil(color: String) |
+    Pen(inkColor: String)
+    // Both Pen and Pencil have a size property
+
+struct Animal =
+    Moose(height: Int)
+      property
+          hasHorns = True
+    Fish(freshWater: Bool)
+    // Only Moose has the hasHorns property</pre></div>
+</div>
+
+
+<p>All union types are also product types (tuples) where the arity of the tuple
+is the number of Type Constructor parameters.  So the following is a
+struct definition that also defined a 2 position tuple:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Album(name: String, length: TimeSpan)</pre></div>
+</div>
+
+
+<h3>Pattern Matching</h3>
+
+<p>Type Constructor/Extractor:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>dogsName Dog(name) = name
+kidsName Kid(name, _) = name</pre></div>
+</div>
+
+
+<p>Nominal pattern matching (will match any type with a <code>name</code> property):</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>name (name =&gt; theName) = theName // you can pass Cat or Person to</pre></div>
+</div>
+
+
+<p>the name function</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>names (name =&gt; ) = name // shorthand to set the local name variable</pre></div>
+</div>
+
+
+<p>Positional pattern matching (match any tuple with the same arity):</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>first (ret, _) = ret
+second (_, ret) = ret</pre></div>
+</div>
+
+
+<p>Positional pattern matching with specific types:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>firstString (str: String, _) = str</pre></div>
+</div>
+
+
+<p>Nominal pattern matching with testing.  The example
+below will match any type that has a <code>name</code> property that is equal
+to <code>"fred"</code> and has an <code>age</code> property that&rsquo;s an <code>Int</code>.  The return type
+is <code>Box Int</code> (<code>Box</code> is similar to <code>Option</code> or <code>Maybe</code>) because the
+pattern is non-exhaustive.</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>fredsAge (name == &quot;fred&quot;, age: Int =&gt;) = age</pre></div>
+</div>
+
+
+<p>Pattern matching against a type constructor:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>fredsAge2 Person(name == &quot;fred&quot;, age =&gt;) = age // Box Int</pre></div>
+</div>
+
+
+<h3>Object-Oriented Features</h3>
+
+<p>Visi is structurally typed, like OCaml. This means that any type with
+a given property or method can be a parameter to a function or
+method that accesses the property/method.  Find the age
+of any type with an age property/method:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>anyAge n = n.age // polymorphic in the return type of age</pre></div>
+</div>
+
+
+<p>Property/method accessors can also be curried so that you don&rsquo;t
+need the thing that the accessor is applied to:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>anyAge2 = #age
+
+anyAgeTest n =
+  n.age == #age n</pre></div>
+</div>
+
+
+<p>We can define methods on a type:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Foo(age: Int)
+    methods
+        old? = self.age &gt; 85
+        addToAge n = self.age + n</pre></div>
+</div>
+
+
+<p>We can also define properties on a type:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>struct Bar(age: Int)
+    property
+        name = &quot;Bar&quot;</pre></div>
+</div>
+
+
+<p>All structs are immutable.  So, to create new instances, we
+use updators (Visi may implement
+<a href="http://www.cis.upenn.edu/~bcpierce/papers/symmetric-full.pdf">lenses</a>,
+but not right now…
+also maybe <a href="http://learnyouahaskell.com/zippers">zippers</a> in the future).</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>kid = Kid &quot;Daniel&quot; 7
+birthday = kid.= 8
+birthday == Kid &quot;Daniel&quot; 8</pre></div>
+</div>
+
+
+<p>And the updator can be partially applied:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>make8 = #=age 8
+
+birthday == make8 kid</pre></div>
+</div>
+
+
+<p>We can also update via a function:</p>
+
+<div class="CodeRay">
+  <div class="code"><pre>nextYear k = k.&gt; (+ 1)
+nextYear2 = #&gt;age (+ 1)
+
+birthday == nextYear kid
+birthday == nextYear2 kid</pre></div>
+</div>
+
+
+<h3>Precursors (aka mixins)</h3>
+
+<h3>Type Class Features</h3>
+
+<h3>Coercions</h3>
+
+<h3>References/Scope</h3>
